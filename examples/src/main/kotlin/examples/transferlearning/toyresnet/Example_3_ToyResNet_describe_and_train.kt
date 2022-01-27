@@ -3,6 +3,11 @@
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE.txt file.
  */
 
+/*
+ * Copyright 2020 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE.txt file.
+ */
+
 package examples.transferlearning.toyresnet
 
 
@@ -40,13 +45,13 @@ private const val NUM_CHANNELS = 1L
 private const val IMAGE_SIZE = 28L
 private const val SEED = 13L
 
-internal val input = Input(
+private val input = Input(
     IMAGE_SIZE,
     IMAGE_SIZE,
     NUM_CHANNELS,
     name = "input_1"
 )
-internal val conv2D_1 = Conv2D(
+private val conv2D_1 = Conv2D(
     filters = 32,
     kernelSize = intArrayOf(3, 3),
     strides = intArrayOf(1, 1, 1, 1),
@@ -56,7 +61,7 @@ internal val conv2D_1 = Conv2D(
     padding = ConvPadding.VALID,
     name = "conv2D_1"
 )
-internal val conv2D_2 = Conv2D(
+private val conv2D_2 = Conv2D(
     filters = 64,
     kernelSize = intArrayOf(3, 3),
     strides = intArrayOf(1, 1, 1, 1),
@@ -66,13 +71,13 @@ internal val conv2D_2 = Conv2D(
     padding = ConvPadding.VALID,
     name = "conv2D_2"
 )
-internal val maxPool2D = MaxPool2D(
+private val maxPool2D = MaxPool2D(
     poolSize = intArrayOf(1, 3, 3, 1),
     strides = intArrayOf(1, 3, 3, 1),
     padding = ConvPadding.VALID,
     name = "maxPool2D"
 )
-internal val conv2D_4 = Conv2D(
+private val conv2D_4 = Conv2D(
     filters = 64,
     kernelSize = intArrayOf(3, 3),
     strides = intArrayOf(1, 1, 1, 1),
@@ -82,7 +87,7 @@ internal val conv2D_4 = Conv2D(
     padding = ConvPadding.SAME,
     name = "conv2D_4"
 )
-internal val conv2D_5 = Conv2D(
+private val conv2D_5 = Conv2D(
     filters = 64,
     kernelSize = intArrayOf(3, 3),
     strides = intArrayOf(1, 1, 1, 1),
@@ -92,8 +97,8 @@ internal val conv2D_5 = Conv2D(
     padding = ConvPadding.SAME,
     name = "conv2D_5"
 )
-internal val add = Add(name = "add")
-internal val conv2D_6 = Conv2D(
+private val add = Add(name = "add")
+private val conv2D_6 = Conv2D(
     filters = 64,
     kernelSize = intArrayOf(3, 3),
     strides = intArrayOf(1, 1, 1, 1),
@@ -103,7 +108,7 @@ internal val conv2D_6 = Conv2D(
     padding = ConvPadding.SAME,
     name = "conv2D_6"
 )
-internal val conv2D_7 = Conv2D(
+private val conv2D_7 = Conv2D(
     filters = 64,
     kernelSize = intArrayOf(3, 3),
     strides = intArrayOf(1, 1, 1, 1),
@@ -113,8 +118,8 @@ internal val conv2D_7 = Conv2D(
     padding = ConvPadding.SAME,
     name = "conv2D_7"
 )
-internal val add_1 = Add(name = "add_1")
-internal val conv2D_8 = Conv2D(
+private val add_1 = Add(name = "add_1")
+private val conv2D_8 = Conv2D(
     filters = 64,
     kernelSize = intArrayOf(3, 3),
     strides = intArrayOf(1, 1, 1, 1),
@@ -124,15 +129,15 @@ internal val conv2D_8 = Conv2D(
     padding = ConvPadding.VALID,
     name = "conv2D_8"
 )
-internal val globalAvgPool2D = GlobalAvgPool2D(name = "globalAvgPool2D")
-internal val dense_1 = Dense(
+private val globalAvgPool2D = GlobalAvgPool2D(name = "globalAvgPool2D")
+private val dense_1 = Dense(
     outputSize = 256,
     activation = Activations.Relu,
     kernelInitializer = HeNormal(SEED),
     biasInitializer = Constant(0.1f),
     name = "dense_1"
 )
-internal val dense_2 = Dense(
+private val dense_2 = Dense(
     outputSize = NUMBER_OF_CLASSES,
     activation = Activations.Linear,
     kernelInitializer = HeNormal(SEED),
@@ -180,4 +185,3 @@ fun main() {
         println("Accuracy after: $accuracy")
     }
 }
-

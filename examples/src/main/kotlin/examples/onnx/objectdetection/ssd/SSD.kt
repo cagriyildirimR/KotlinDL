@@ -20,7 +20,7 @@ import java.io.File
  * - Model predicts on a few images located in resources.
  * - Special preprocessing is applied to images before prediction.
  */
-fun predictionSSD() {
+fun ssd() {
     val modelHub = ONNXModelHub(cacheDirectory = File("cache/pretrainedModels"))
     val modelType = ONNXModels.ObjectDetection.SSD
     val model = modelHub.loadModel(modelType)
@@ -28,10 +28,10 @@ fun predictionSSD() {
     model.use {
         println(it)
 
-        for (i in 0..8) {
+        for (i in 1..6) {
             val preprocessing: Preprocessing = preprocess {
                 load {
-                    pathToData = getFileFromResource("datasets/vgg/image$i.jpg")
+                    pathToData = getFileFromResource("datasets/detection/image$i.jpg")
                     imageShape = ImageShape(224, 224, 3)
                 }
                 transformImage {
@@ -46,11 +46,11 @@ fun predictionSSD() {
             val inputData = modelType.preprocessInput(preprocessing)
 
             val yhat = it.predictRaw(inputData)
-            println(yhat.toTypedArray().contentDeepToString())
+            println(yhat.values.toTypedArray().contentDeepToString())
         }
     }
 }
 
 /** */
-fun main(): Unit = predictionSSD()
+fun main(): Unit = ssd()
 

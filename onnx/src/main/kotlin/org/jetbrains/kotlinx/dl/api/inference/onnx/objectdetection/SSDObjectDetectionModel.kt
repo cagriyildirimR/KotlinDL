@@ -19,16 +19,13 @@ import java.io.File
  * Special model class for detection objects on images
  * with built-in preprocessing and post-processing.
  *
- * It internally uses SSD model trained on the COCO dataset.
+ * It internally uses [ONNXModels.ObjectDetection.SSD] trained on the COCO dataset.
  *
  * @since 0.3
- *
- * @see <a href="https://arxiv.org/abs/1512.02325">
- *     SSD: Single Shot MultiBox Detector.</a>
  */
 public class SSDObjectDetectionModel : OnnxInferenceModel() {
     /**
-     * Returns the top N detected object for the given image file.
+     * Returns the top N detected object for the given image file sorted by the score.
      *
      * NOTE: this method doesn't include the SSD - related preprocessing.
      *
@@ -40,9 +37,9 @@ public class SSDObjectDetectionModel : OnnxInferenceModel() {
         val rawPrediction = this.predictRaw(inputData)
 
         val foundObjects = mutableListOf<DetectedObject>()
-        val boxes = rawPrediction[0][0] as Array<FloatArray>
-        val classIndices = rawPrediction[1][0] as LongArray
-        val probabilities = rawPrediction[2][0] as FloatArray
+        val boxes = (rawPrediction["bboxes"] as Array<Array<FloatArray>>)[0]
+        val classIndices = (rawPrediction["labels"] as Array<LongArray>)[0]
+        val probabilities = (rawPrediction["scores"] as Array<FloatArray>)[0]
         val numberOfFoundObjects = boxes.size
 
         for (i in 0 until numberOfFoundObjects) {
@@ -51,15 +48,16 @@ public class SSDObjectDetectionModel : OnnxInferenceModel() {
                 probability = probabilities[i],
                 // left, bot, right, top
                 xMin = boxes[i][0],
-                yMax = boxes[i][1],
+                yMin = boxes[i][1],
                 xMax = boxes[i][2],
-                yMin = boxes[i][3]
+                yMax = boxes[i][3]
             )
             foundObjects.add(detectedObject)
         }
 
+        foundObjects.sortByDescending { it.probability }
+
         if (topK > 0) {
-            foundObjects.sortByDescending { it.probability }
             return foundObjects.take(topK)
         }
 
@@ -67,7 +65,7 @@ public class SSDObjectDetectionModel : OnnxInferenceModel() {
     }
 
     /**
-     * Returns the top N detected object for the given image file.
+     * Returns the top N detected object for the given image file sorted by the score.
      *
      * NOTE: this method includes the SSD - related preprocessing.
      *
@@ -79,7 +77,7 @@ public class SSDObjectDetectionModel : OnnxInferenceModel() {
         val preprocessing: Preprocessing = preprocess {
             load {
                 pathToData = imageFile
-                imageShape = ImageShape(224, 224, 3)
+                imageShape = ImageShape(null, null, 3)
             }
             transformImage {
                 resize {
