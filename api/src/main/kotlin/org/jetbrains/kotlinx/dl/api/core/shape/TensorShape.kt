@@ -1,35 +1,17 @@
 /*
- * Copyright 2020 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
+ * Copyright 2020-2022 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE.txt file.
  */
 
 package org.jetbrains.kotlinx.dl.api.core.shape
 
-import org.tensorflow.Shape
 import kotlin.math.abs
 
 /**
- * Helper wrapper of [Shape] class with helper methods.
- *
+ * Representation of the tensor shape class with helper methods.
  */
 public class TensorShape() {
     private lateinit var dims: LongArray
-
-    public companion object {
-        /** Returns first dimension from all dimensions [dims]. */
-        public fun head(vararg dims: Long): Long {
-            return dims[0]
-        }
-
-        /** Returns last dimensions (except first) from [dims]. */
-        public fun tail(vararg dims: Long): LongArray {
-            return dims.copyOfRange(1, dims.size)
-        }
-    }
-
-    public constructor(shape: Shape) : this() {
-        dims = dimsFromShape(shape)
-    }
 
     /**
      * Creates a new `TensorShape` with the given dimensions.
@@ -49,7 +31,7 @@ public class TensorShape() {
     public constructor(firstDimension: Long, vararg dims: Long) : this() {
         this.dims = LongArray(dims.size + 1)
         this.dims[0] = firstDimension
-        System.arraycopy(dims, 0, this.dims, 1, dims.size)
+        dims.copyInto(this.dims, destinationOffset = 1)
     }
 
     private fun numDimensions(): Int {
@@ -167,18 +149,10 @@ public class TensorShape() {
         return this
     }
 
-    private fun dimsFromShape(shape: Shape): LongArray {
-        val dims = LongArray(shape.numDimensions())
-        for (i in 0 until shape.numDimensions()) {
-            dims[i] = shape.size(i)
-        }
-        return dims
-    }
-
     private fun concatenate(first: LongArray, vararg last: Long): LongArray {
         val dims = LongArray(first.size + last.size)
-        System.arraycopy(first, 0, dims, 0, first.size)
-        System.arraycopy(last, 0, dims, first.size, last.size)
+        first.copyInto(dims)
+        last.copyInto(dims, destinationOffset = first.size)
         return dims
     }
 
@@ -192,24 +166,17 @@ public class TensorShape() {
         return dims.copyOfRange(1, dims.size)
     }
 
-    /** Converts to [Shape] object. */
-    public fun toShape(): Shape {
-        return Shape.make(head(*dims), *tail(*dims))
-    }
-
     override fun toString(): String {
         return dims.contentToString().replace("-1", "None")
     }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (javaClass != other?.javaClass) return false
+        if (other == null || this::class != other::class) return false
 
         other as TensorShape
 
-        if (!dims.contentEquals(other.dims)) return false
-
-        return true
+        return dims.contentEquals(other.dims)
     }
 
     override fun hashCode(): Int {
@@ -231,4 +198,51 @@ public class TensorShape() {
 
         return almostEqual
     }
+
+    public companion object {
+        /** Returns first dimension from all dimensions of this array. */
+        public fun LongArray.head(): Long = this[0]
+
+        /** Returns last dimensions (except first) from this array. */
+        public fun LongArray.tail(): LongArray = copyOfRange(1, size)
+    }
 }
+
+/**
+ * Get shape of array of arrays (of arrays...) of Array of elements of any type.
+ * If the most inner array does not have any elements its size is skipped in the result.
+ */
+public fun getDimsOfArray(data: Array<*>): LongArray {
+    fun appendPrimitiveArraySize(size: Int, acc: MutableList<Long>): LongArray {
+        acc += size.toLong()
+        return acc.toLongArray()
+    }
+
+    tailrec fun collectDims(data: Array<*>, acc: MutableList<Long>): LongArray {
+        val firstElem = data[0] ?: return acc.toLongArray()
+        acc += data.size.toLong()
+        return when (firstElem) {
+            is Array<*> -> collectDims(firstElem, acc)
+            is BooleanArray -> appendPrimitiveArraySize(firstElem.size, acc)
+            is ByteArray -> appendPrimitiveArraySize(firstElem.size, acc)
+            is CharArray -> appendPrimitiveArraySize(firstElem.size, acc)
+            is ShortArray -> appendPrimitiveArraySize(firstElem.size, acc)
+            is IntArray -> appendPrimitiveArraySize(firstElem.size, acc)
+            is LongArray -> appendPrimitiveArraySize(firstElem.size, acc)
+            is FloatArray -> appendPrimitiveArraySize(firstElem.size, acc)
+            is DoubleArray -> appendPrimitiveArraySize(firstElem.size, acc)
+            else -> acc.toLongArray()
+        }
+    }
+    return collectDims(data, mutableListOf())
+}
+
+/**
+ * @see getDimsOfArray
+ */
+public val Array<*>.tensorShape: TensorShape get() = TensorShape(getDimsOfArray(this))
+
+/**
+ * Wraps an IntArray to TensorShape.
+ */
+public fun IntArray.toTensorShape(): TensorShape = TensorShape(this.map(Int::toLong).toLongArray())

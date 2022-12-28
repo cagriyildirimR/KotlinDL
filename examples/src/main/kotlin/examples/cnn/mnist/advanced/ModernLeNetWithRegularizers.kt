@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
+ * Copyright 2020-2022 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE.txt file.
  */
 
@@ -18,8 +18,8 @@ import org.jetbrains.kotlinx.dl.api.core.loss.Losses
 import org.jetbrains.kotlinx.dl.api.core.metric.Metrics
 import org.jetbrains.kotlinx.dl.api.core.optimizer.SGD
 import org.jetbrains.kotlinx.dl.api.core.regularizer.L2L1
-import org.jetbrains.kotlinx.dl.dataset.handler.NUMBER_OF_CLASSES
-import org.jetbrains.kotlinx.dl.dataset.mnist
+import org.jetbrains.kotlinx.dl.dataset.embedded.NUMBER_OF_CLASSES
+import org.jetbrains.kotlinx.dl.dataset.embedded.mnist
 
 private const val EPOCHS = 2
 private const val TRAINING_BATCH_SIZE = 1000
@@ -42,29 +42,29 @@ private val modernLeNet = Sequential.of(
     ),
     Conv2D(
         filters = 32,
-        kernelSize = intArrayOf(5, 5),
-        strides = intArrayOf(1, 1, 1, 1),
+        kernelSize = 5,
+        strides = 1,
         activation = Activations.Relu,
         kernelInitializer = HeNormal(SEED),
         biasInitializer = HeNormal(SEED),
         padding = ConvPadding.SAME
     ),
     MaxPool2D(
-        poolSize = intArrayOf(1, 2, 2, 1),
-        strides = intArrayOf(1, 2, 2, 1)
+        poolSize = 2,
+        strides = 2,
     ),
     Conv2D(
         filters = 64,
-        kernelSize = intArrayOf(5, 5),
-        strides = intArrayOf(1, 1, 1, 1),
+        kernelSize = 5,
+        strides = 1,
         activation = Activations.Relu,
         kernelInitializer = HeNormal(SEED),
         biasInitializer = HeNormal(SEED),
         padding = ConvPadding.SAME
     ),
     MaxPool2D(
-        poolSize = intArrayOf(1, 2, 2, 1),
-        strides = intArrayOf(1, 2, 2, 1)
+        poolSize = 2,
+        strides = 2,
     ),
     Flatten(), // 3136
     Dense(

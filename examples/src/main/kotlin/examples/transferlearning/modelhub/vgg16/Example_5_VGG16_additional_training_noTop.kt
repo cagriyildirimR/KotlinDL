@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
+ * Copyright 2020-2022 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE.txt file.
  */
 
@@ -15,21 +15,16 @@ import org.jetbrains.kotlinx.dl.api.core.layer.reshaping.Flatten
 import org.jetbrains.kotlinx.dl.api.core.loss.Losses
 import org.jetbrains.kotlinx.dl.api.core.metric.Metrics
 import org.jetbrains.kotlinx.dl.api.core.optimizer.Adam
-import org.jetbrains.kotlinx.dl.api.core.summary.printSummary
 import org.jetbrains.kotlinx.dl.api.inference.keras.loadWeightsForFrozenLayers
-import org.jetbrains.kotlinx.dl.api.inference.keras.loaders.TFModelHub
-import org.jetbrains.kotlinx.dl.api.inference.keras.loaders.TFModels
+import org.jetbrains.kotlinx.dl.api.inference.loaders.TFModelHub
+import org.jetbrains.kotlinx.dl.api.inference.loaders.TFModels
+import org.jetbrains.kotlinx.dl.api.inference.loaders.TFModels.CV.Companion.createPreprocessing
+import org.jetbrains.kotlinx.dl.api.summary.printSummary
 import org.jetbrains.kotlinx.dl.dataset.OnFlyImageDataset
-import org.jetbrains.kotlinx.dl.dataset.dogsCatsSmallDatasetPath
-import org.jetbrains.kotlinx.dl.dataset.image.ColorMode
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.*
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.generator.FromFolders
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.image.InterpolationType
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.image.convert
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.image.resize
+import org.jetbrains.kotlinx.dl.dataset.embedded.dogsCatsSmallDatasetPath
+import org.jetbrains.kotlinx.dl.dataset.generator.FromFolders
 import java.io.File
 
-private const val NUM_CHANNELS = 3L
 private const val IMAGE_SIZE = 200
 private const val TRAIN_TEST_SPLIT_RATIO = 0.7
 private const val TRAINING_BATCH_SIZE = 8
@@ -44,7 +39,7 @@ private const val EPOCHS = 2
  * - New Dense layers are added and initialized via defined initializers.
  * - Model is re-trained on [dogsCatsSmallDatasetPath] dataset.
  *
- * We use the [Preprocessing] DSL to describe the dataset generation pipeline.
+ * We use the preprocessing DSL to describe the dataset generation pipeline.
  * We demonstrate the workflow on the subset of Kaggle Cats vs Dogs binary classification dataset.
  *
  * @see <a href="https://arxiv.org/abs/1409.1556">
@@ -56,32 +51,6 @@ fun vgg16noTopAdditionalTraining() {
     val modelHub = TFModelHub(cacheDirectory = File("cache/pretrainedModels"))
     val modelType = TFModels.CV.VGG16(noTop = true, inputShape = intArrayOf(IMAGE_SIZE, IMAGE_SIZE, 3))
     val model = modelHub.loadModel(modelType)
-
-    val dogsVsCatsDatasetPath = dogsCatsSmallDatasetPath()
-
-    val preprocessing: Preprocessing = preprocess {
-        load {
-            pathToData = File(dogsVsCatsDatasetPath)
-            imageShape = ImageShape(channels = NUM_CHANNELS)
-            labelGenerator = FromFolders(mapping = mapOf("cat" to 0, "dog" to 1))
-        }
-        transformImage {
-            resize {
-                outputHeight = IMAGE_SIZE
-                outputWidth = IMAGE_SIZE
-                interpolation = InterpolationType.BILINEAR
-            }
-            convert { colorMode = ColorMode.BGR }
-        }
-        transformTensor {
-            sharpen {
-                modelTypePreprocessing = modelType
-            }
-        }
-    }
-
-    val dataset = OnFlyImageDataset.create(preprocessing).shuffle()
-    val (train, test) = dataset.split(TRAIN_TEST_SPLIT_RATIO)
 
     val layers = mutableListOf<Layer>()
 
@@ -113,6 +82,13 @@ fun vgg16noTopAdditionalTraining() {
 
     val newModel = Sequential.of(layers)
 
+    val dataset = OnFlyImageDataset.create(
+        File(dogsCatsSmallDatasetPath()),
+        FromFolders(mapping = mapOf("cat" to 0, "dog" to 1)),
+        modelType.createPreprocessing(newModel)
+    ).shuffle()
+    val (train, test) = dataset.split(TRAIN_TEST_SPLIT_RATIO)
+
     newModel.use {
         it.compile(
             optimizer = Adam(),
@@ -142,5 +118,3 @@ fun vgg16noTopAdditionalTraining() {
 
 /** */
 fun main(): Unit = vgg16noTopAdditionalTraining()
-
-

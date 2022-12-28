@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
+ * Copyright 2020-2022 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE.txt file.
  */
 
@@ -11,24 +11,19 @@ import org.jetbrains.kotlinx.dl.api.core.activation.Activations
 import org.jetbrains.kotlinx.dl.api.core.initializer.HeNormal
 import org.jetbrains.kotlinx.dl.api.core.layer.Layer
 import org.jetbrains.kotlinx.dl.api.core.layer.core.Dense
+import org.jetbrains.kotlinx.dl.api.core.layer.freeze
 import org.jetbrains.kotlinx.dl.api.core.loss.Losses
 import org.jetbrains.kotlinx.dl.api.core.metric.Metrics
 import org.jetbrains.kotlinx.dl.api.core.optimizer.Adam
 import org.jetbrains.kotlinx.dl.api.inference.keras.loadWeightsForFrozenLayers
-import org.jetbrains.kotlinx.dl.api.inference.keras.loaders.TFModelHub
-import org.jetbrains.kotlinx.dl.api.inference.keras.loaders.TFModels
+import org.jetbrains.kotlinx.dl.api.inference.loaders.TFModelHub
+import org.jetbrains.kotlinx.dl.api.inference.loaders.TFModels
+import org.jetbrains.kotlinx.dl.api.inference.loaders.TFModels.CV.Companion.createPreprocessing
 import org.jetbrains.kotlinx.dl.dataset.OnFlyImageDataset
-import org.jetbrains.kotlinx.dl.dataset.dogsCatsSmallDatasetPath
-import org.jetbrains.kotlinx.dl.dataset.image.ColorMode
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.*
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.generator.FromFolders
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.image.InterpolationType
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.image.convert
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.image.resize
+import org.jetbrains.kotlinx.dl.dataset.embedded.dogsCatsSmallDatasetPath
+import org.jetbrains.kotlinx.dl.dataset.generator.FromFolders
 import java.io.File
 
-private const val NUM_CHANNELS = 3L
-private const val IMAGE_SIZE = 224L
 private const val TRAIN_TEST_SPLIT_RATIO = 0.7
 private const val TRAINING_BATCH_SIZE = 8
 private const val TEST_BATCH_SIZE = 16
@@ -42,7 +37,7 @@ private const val EPOCHS = 2
  * - New Dense layers are added and initialized via defined initializers.
  * - Model is re-trained on [dogsCatsSmallDatasetPath] dataset.
  *
- * We use the [Preprocessing] DSL to describe the dataset generation pipeline.
+ * We use the preprocessing DSL to describe the dataset generation pipeline.
  * We demonstrate the workflow on the subset of Kaggle Cats vs Dogs binary classification dataset.
  *
  * @see <a href="https://arxiv.org/abs/1409.1556">
@@ -55,39 +50,8 @@ fun vgg19additionalTraining() {
     val modelType = TFModels.CV.VGG19()
     val model = modelHub.loadModel(modelType)
 
-    val dogsVsCatsDatasetPath = dogsCatsSmallDatasetPath()
-
-    val preprocessing: Preprocessing = preprocess {
-        load {
-            pathToData = File(dogsVsCatsDatasetPath)
-            imageShape = ImageShape(channels = NUM_CHANNELS)
-            labelGenerator = FromFolders(mapping = mapOf("cat" to 0, "dog" to 1))
-        }
-        transformImage {
-            resize {
-                outputHeight = IMAGE_SIZE.toInt()
-                outputWidth = IMAGE_SIZE.toInt()
-                interpolation = InterpolationType.BILINEAR
-            }
-            convert { colorMode = ColorMode.BGR }
-        }
-        transformTensor {
-            sharpen {
-                TFModels.CV.VGG19()
-            }
-        }
-    }
-
-    val dataset = OnFlyImageDataset.create(preprocessing).shuffle()
-    val (train, test) = dataset.split(TRAIN_TEST_SPLIT_RATIO)
-
-    val layers = mutableListOf<Layer>()
-
-    for (layer in model.layers.dropLast(1)) {
-        layer.isTrainable = false
-        layers.add(layer)
-    }
-    layers.forEach { it.isTrainable = false }
+    val layers = model.layers.dropLast(1).toMutableList()
+    layers.forEach(Layer::freeze)
 
     layers.add(
         Dense(
@@ -109,6 +73,13 @@ fun vgg19additionalTraining() {
     )
 
     val newModel = Sequential.of(layers)
+
+    val dataset = OnFlyImageDataset.create(
+        File(dogsCatsSmallDatasetPath()),
+        FromFolders(mapping = mapOf("cat" to 0, "dog" to 1)),
+        modelType.createPreprocessing(newModel)
+    ).shuffle()
+    val (train, test) = dataset.split(TRAIN_TEST_SPLIT_RATIO)
 
     newModel.use {
         it.compile(

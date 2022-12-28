@@ -1,26 +1,30 @@
 /*
- * Copyright 2020 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
+ * Copyright 2020-2022 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE.txt file.
  */
 
 package examples.onnx.objectdetection
 
-import examples.onnx.objectdetection.ssd.ssdLightAPI
 import examples.onnx.objectdetection.ssd.ssd
+import examples.onnx.objectdetection.ssd.ssdLightAPI
 import examples.onnx.objectdetection.ssdmobile.ssdMobile
 import examples.onnx.objectdetection.ssdmobile.ssdMobileLightAPI
 import examples.transferlearning.getFileFromResource
-import org.jetbrains.kotlinx.dl.api.inference.loaders.ONNXModelHub
-import org.jetbrains.kotlinx.dl.api.inference.onnx.ONNXModels
-import org.jetbrains.kotlinx.dl.api.inference.onnx.OnnxInferenceModel
-import org.jetbrains.kotlinx.dl.api.inference.onnx.objectdetection.EfficientDetObjectDetectionModel
-import org.jetbrains.kotlinx.dl.dataset.image.ColorMode
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.*
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.image.convert
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.image.resize
+import org.jetbrains.kotlinx.dl.api.preprocessing.pipeline
+import org.jetbrains.kotlinx.dl.dataset.preprocessing.fileLoader
+import org.jetbrains.kotlinx.dl.impl.preprocessing.call
+import org.jetbrains.kotlinx.dl.impl.preprocessing.image.ColorMode
+import org.jetbrains.kotlinx.dl.impl.preprocessing.image.convert
+import org.jetbrains.kotlinx.dl.impl.preprocessing.image.resize
+import org.jetbrains.kotlinx.dl.impl.preprocessing.image.toFloatArray
+import org.jetbrains.kotlinx.dl.onnx.inference.ONNXModelHub
+import org.jetbrains.kotlinx.dl.onnx.inference.ONNXModels
+import org.jetbrains.kotlinx.dl.onnx.inference.OnnxInferenceModel
+import org.jetbrains.kotlinx.dl.onnx.inference.objectdetection.EfficientDetObjectDetectionModel
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.awt.image.BufferedImage
 import java.io.File
 
 class ObjectDetectionTestSuite {
@@ -33,6 +37,7 @@ class ObjectDetectionTestSuite {
     fun ssdLightAPITest() {
         ssdLightAPI()
     }
+
     @Test
     fun ssdMobileTest() {
         ssdMobile()
@@ -50,7 +55,7 @@ class ObjectDetectionTestSuite {
 
     @Test
     fun efficientDetD0LightAPITest() {
-        efficientDetLightAPIInference(ONNXModels.ObjectDetection.EfficientDetD0, 51)
+        efficientDetLightAPIInference(ONNXModels.ObjectDetection.EfficientDetD0, 72)
     }
 
     @Test
@@ -60,7 +65,7 @@ class ObjectDetectionTestSuite {
 
     @Test
     fun efficientDetD1LightAPITest() {
-        efficientDetLightAPIInference(ONNXModels.ObjectDetection.EfficientDetD1, 50)
+        efficientDetLightAPIInference(ONNXModels.ObjectDetection.EfficientDetD1, 65)
     }
 
     @Test
@@ -70,7 +75,7 @@ class ObjectDetectionTestSuite {
 
     @Test
     fun efficientDetD2LightAPITest() {
-        efficientDetLightAPIInference(ONNXModels.ObjectDetection.EfficientDetD2, 38)
+        efficientDetLightAPIInference(ONNXModels.ObjectDetection.EfficientDetD2, 51)
     }
 
     @Test
@@ -80,7 +85,7 @@ class ObjectDetectionTestSuite {
 
     @Test
     fun efficientDetD3LightAPITest() {
-        efficientDetLightAPIInference(ONNXModels.ObjectDetection.EfficientDetD3, 33)
+        efficientDetLightAPIInference(ONNXModels.ObjectDetection.EfficientDetD3, 38)
     }
 
     @Test
@@ -90,7 +95,7 @@ class ObjectDetectionTestSuite {
 
     @Test
     fun efficientDetD4LightAPITest() {
-        efficientDetLightAPIInference(ONNXModels.ObjectDetection.EfficientDetD4, 27)
+        efficientDetLightAPIInference(ONNXModels.ObjectDetection.EfficientDetD4, 26)
     }
 
     @Test
@@ -100,7 +105,7 @@ class ObjectDetectionTestSuite {
 
     @Test
     fun efficientDetD5LightAPITest() {
-        efficientDetLightAPIInference(ONNXModels.ObjectDetection.EfficientDetD5, 24)
+        efficientDetLightAPIInference(ONNXModels.ObjectDetection.EfficientDetD5, 26)
     }
 
     @Test
@@ -110,32 +115,28 @@ class ObjectDetectionTestSuite {
 
     @Test
     fun efficientDetD6LightAPITest() {
-        efficientDetLightAPIInference(ONNXModels.ObjectDetection.EfficientDetD6, 19)
+        efficientDetLightAPIInference(ONNXModels.ObjectDetection.EfficientDetD6, 22)
     }
 }
 
 
-fun efficientDetInference(modelType: ONNXModels.ObjectDetection<OnnxInferenceModel, EfficientDetObjectDetectionModel>) {
+fun efficientDetInference(modelType: ONNXModels.ObjectDetection<EfficientDetObjectDetectionModel>) {
     val modelHub = ONNXModelHub(cacheDirectory = File("cache/pretrainedModels"))
     val model = modelHub.loadModel(modelType)
 
     model.use {
-        for (i in 1..6) {
-            val preprocessing: Preprocessing = preprocess {
-                load {
-                    pathToData = getFileFromResource("datasets/detection/image$i.jpg")
-                    imageShape = ImageShape(null, null, 3)
-                }
-                transformImage {
-                    resize {
-                        outputHeight = it.inputShape[1].toInt()
-                        outputWidth = it.inputShape[2].toInt()
-                    }
-                    convert { colorMode = ColorMode.BGR }
-                }
+        val fileDataLoader = pipeline<BufferedImage>()
+            .resize {
+                outputHeight = it.inputDimensions[0].toInt()
+                outputWidth = it.inputDimensions[1].toInt()
             }
+            .convert { colorMode = ColorMode.BGR }
+            .toFloatArray { }
+            .call(modelType.preprocessor)
+            .fileLoader()
 
-            val inputData = modelType.preprocessInput(preprocessing)
+        for (i in 1..6) {
+            val inputData = fileDataLoader.load(getFileFromResource("datasets/detection/image$i.jpg"))
 
             val yhat = it.predictRaw(inputData)
             assertTrue { yhat.containsKey("detections:0") }
@@ -143,15 +144,16 @@ fun efficientDetInference(modelType: ONNXModels.ObjectDetection<OnnxInferenceMod
     }
 }
 
-fun efficientDetLightAPIInference(modelType: ONNXModels.ObjectDetection<OnnxInferenceModel, EfficientDetObjectDetectionModel>, numberOfDetectedObjects: Int) {
-    val modelHub =
-        ONNXModelHub(cacheDirectory = File("cache/pretrainedModels"))
+fun efficientDetLightAPIInference(
+    modelType: ONNXModels.ObjectDetection<EfficientDetObjectDetectionModel>,
+    numberOfDetectedObjects: Int
+) {
+    val modelHub = ONNXModelHub(cacheDirectory = File("cache/pretrainedModels"))
     val model = modelHub.loadPretrainedModel(modelType)
 
     model.use { detectionModel ->
         val imageFile = getFileFromResource("datasets/detection/image4.jpg")
-        val detectedObjects =
-            detectionModel.detectObjects(imageFile = imageFile)
+        val detectedObjects = detectionModel.detectObjects(imageFile = imageFile, topK = 0)
 
         assertEquals(numberOfDetectedObjects, detectedObjects.size)
     }

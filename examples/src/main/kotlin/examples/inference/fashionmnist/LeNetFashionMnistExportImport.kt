@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
+ * Copyright 2020-2022 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE.txt file.
  */
 
@@ -11,26 +11,13 @@ import org.jetbrains.kotlinx.dl.api.core.loss.Losses
 import org.jetbrains.kotlinx.dl.api.core.metric.Metrics
 import org.jetbrains.kotlinx.dl.api.core.optimizer.Adam
 import org.jetbrains.kotlinx.dl.api.inference.TensorFlowInferenceModel
-import org.jetbrains.kotlinx.dl.dataset.fashionMnist
+import org.jetbrains.kotlinx.dl.dataset.embedded.fashionMnist
 import java.io.File
 
 private const val PATH_TO_MODEL = "savedmodels/fashionLenet"
 private const val EPOCHS = 3
 private const val TRAINING_BATCH_SIZE = 500
 private const val TEST_BATCH_SIZE = 1000
-
-private val fashionMnistLabelEncoding = mapOf(
-    0 to "T-shirt/top",
-    1 to "Trouser",
-    2 to "Pullover",
-    3 to "Dress",
-    4 to "Coat",
-    5 to "Sandal",
-    6 to "Shirt",
-    7 to "Sneaker",
-    8 to "Bag",
-    9 to "Ankle boot"
-)
 
 /**
  * This examples demonstrates model and model weights export and import back:

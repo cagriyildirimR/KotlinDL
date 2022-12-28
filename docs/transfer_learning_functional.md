@@ -24,33 +24,29 @@ This way makes it easier to get the labels for all the examples based on the fol
 Now we need to create a `Dataset` from these images. 
 You can do so via the Image Preprocessing Pipeline description, and building a dataset from those. 
 
+**Note**: The preprocessing DSL has changed in KotlinDL 0.5.0.
+You can find the docs for the previous version of the DSL [here](https://github.com/Kotlin/kotlindl/blob/release_0.4/docs/transfer_learning.md).
+
 Here's code that will go through a folder structure received via ```dogsCatsSmallDatasetPath()```, loads and resizes the images, and applies the ResNet'50 specific preprocessing.
 
 ```kotlin
+val preprocessing = pipeline<BufferedImage>()
+    .resize {
+        outputHeight = 224
+        outputWidth = 224
+        interpolation = InterpolationType.BILINEAR
+    }
+    .convert { colorMode = ColorMode.RGB }
+    .toFloatArray { }
+    .call(TFModels.CV.ResNet50().preprocessor)
+
 val dogsVsCatsDatasetPath = dogsCatsSmallDatasetPath()
+val dataset = OnFlyImageDataset.create(
+    File(dogsVsCatsDatasetPath),
+    FromFolders(mapping = mapOf("cat" to 0, "dog" to 1)),
+    preprocessing
+).shuffle()
 
-val preprocessing: Preprocessing = preprocess {
-    load {
-        pathToData = File(dogsVsCatsDatasetPath)
-        imageShape = ImageShape(channels = 3)
-        colorMode = ColorOrder.BGR
-        labelGenerator = FromFolders(mapping = mapOf("cat" to 0, "dog" to 1))
-    }
-    transformImage {
-        resize {
-            outputHeight = 224
-            outputWidth = 224
-            interpolation = InterpolationType.BILINEAR
-        }
-    }
-    transformTensor {
-        sharpen {
-            modelType = TFModels.CV.ResNet50
-        }
-    }
-}
-
-val dataset = OnFlyImageDataset.create(preprocessing).shuffle()
 val (train, test) = dataset.split(0.7)
 ```  
 In the final lines, after creating a dataset, we shuffle the data, so that when we split it into training and testing portions, we do not get a test set containing only images of one class.    
@@ -63,7 +59,7 @@ In this tutorial, we will load ResNet'50 model and weights that are made availab
 
 ```kotlin
 val modelHub = TFModelHub(cacheDirectory = File("cache/pretrainedModels"))
-val modelType = TFModels.CV.ResNet50
+val modelType = TFModels.CV.ResNet50()
 val model = modelHub.loadModel(modelType)
 ```
 

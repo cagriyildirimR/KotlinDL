@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
+ * Copyright 2020-2022 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE.txt file.
  */
 
@@ -11,18 +11,20 @@ import org.jetbrains.kotlinx.dl.api.core.Sequential
 import org.jetbrains.kotlinx.dl.api.core.loss.Losses
 import org.jetbrains.kotlinx.dl.api.core.metric.Metrics
 import org.jetbrains.kotlinx.dl.api.core.optimizer.Adam
-import org.jetbrains.kotlinx.dl.api.core.shape.tail
-import org.jetbrains.kotlinx.dl.api.core.summary.logSummary
 import org.jetbrains.kotlinx.dl.api.inference.keras.*
-import org.jetbrains.kotlinx.dl.api.inference.keras.loaders.InputType
-import org.jetbrains.kotlinx.dl.api.inference.keras.loaders.predictTop5ImageNetLabels
-import org.jetbrains.kotlinx.dl.api.inference.keras.loaders.prepareImageNetHumanReadableClassLabels
-import org.jetbrains.kotlinx.dl.api.inference.keras.loaders.preprocessInput
+import org.jetbrains.kotlinx.dl.api.preprocessing.pipeline
 import org.jetbrains.kotlinx.dl.dataset.OnHeapDataset
-import org.jetbrains.kotlinx.dl.dataset.image.ColorMode
-import org.jetbrains.kotlinx.dl.dataset.image.ImageConverter
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.*
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.image.convert
+import org.jetbrains.kotlinx.dl.dataset.preprocessing.fileLoader
+import org.jetbrains.kotlinx.dl.dataset.preprocessing.inputStreamLoader
+import org.jetbrains.kotlinx.dl.impl.dataset.Imagenet
+import org.jetbrains.kotlinx.dl.impl.inference.imagerecognition.InputType
+import org.jetbrains.kotlinx.dl.impl.inference.imagerecognition.predictTop5Labels
+import org.jetbrains.kotlinx.dl.impl.preprocessing.call
+import org.jetbrains.kotlinx.dl.impl.preprocessing.image.ColorMode
+import org.jetbrains.kotlinx.dl.impl.preprocessing.image.convert
+import org.jetbrains.kotlinx.dl.impl.preprocessing.image.toFloatArray
+import org.jetbrains.kotlinx.dl.impl.summary.logSummary
+import java.awt.image.BufferedImage
 import java.io.File
 import java.io.FileReader
 import java.util.*
@@ -32,7 +34,7 @@ import java.util.*
  *
  * - Weights are loaded from .h5 file, configuration is loaded from .json file.
  * - Model predicts on a few images located in resources.
- * - Special preprocessing (used in VGG'16 during training on ImageNet dataset) is applied to images before prediction.
+ * - Special preprocessing (used in VGG'16 during training on ImageNet dataset) is applied to each image before prediction.
  * - No additional training.
  * - No new layers are added.
  *
@@ -47,7 +49,7 @@ fun main() {
     val jsonConfigFile = getVGG16JSONConfigFile()
     val model = Sequential.loadModelConfiguration(jsonConfigFile)
 
-    val imageNetClassLabels = prepareImageNetHumanReadableClassLabels()
+    val imageNetClassLabels = Imagenet.V1k.labels()
 
     model.use {
         it.compile(
@@ -64,20 +66,18 @@ fun main() {
         val biasDataPathTemplate = "/%s/%s_b_1:0"
         it.loadWeightsByPathTemplates(hdfFile, kernelDataPathTemplate, biasDataPathTemplate)
 
-        for (i in 1..8) {
-            val preprocessing: Preprocessing = preprocess {
-                load {
-                    pathToData = getFileFromResource("datasets/vgg/image$i.jpg")
-                    imageShape = ImageShape(224, 224, 3)
-                }
-                transformImage { convert { colorMode = ColorMode.BGR } }
-            }
+        val fileLoader = pipeline<BufferedImage>()
+            .convert { colorMode = ColorMode.BGR }
+            .toFloatArray { }
+            .call(InputType.CAFFE.preprocessing())
+            .fileLoader()
 
-            val inputData = preprocessInput(preprocessing().first, model.inputDimensions, inputType = InputType.CAFFE)
+        for (i in 1..8) {
+            val inputData = fileLoader.load(getFileFromResource("datasets/vgg/image$i.jpg")).first
             val res = it.predict(inputData, "Activation_predictions")
             println("Predicted object for image$i.jpg is ${imageNetClassLabels[res]}")
 
-            val top5 = predictTop5ImageNetLabels(it, inputData, imageNetClassLabels)
+            val top5 = it.predictTop5Labels(inputData, imageNetClassLabels)
 
             println(top5.toString())
         }
@@ -167,21 +167,19 @@ fun main() {
         )
         it.loadWeightsByPaths(hdfFile, weightPaths)
 
+        val inputStreamLoader = pipeline<BufferedImage>()
+            .convert { colorMode = ColorMode.BGR }
+            .toFloatArray { }
+            .call(InputType.CAFFE.preprocessing())
+            .inputStreamLoader()
+
         for (i in 1..8) {
             val inputStream = OnHeapDataset::class.java.classLoader.getResourceAsStream("datasets/vgg/image$i.jpg")
-            val floatArray = ImageConverter.toRawFloatArray(inputStream, colorMode = ColorMode.BGR)
-
-            val xTensorShape = it.inputLayer.input.asOutput().shape()
-            val tensorShape = longArrayOf(
-                1,
-                *tail(xTensorShape)
-            )
-
-            val inputData = preprocessInput(floatArray, tensorShape, inputType = InputType.CAFFE)
+            val inputData = inputStreamLoader.load(inputStream).first
             val res = it.predict(inputData, "Activation_predictions")
             println("Predicted object for image$i.jpg is ${imageNetClassLabels[res]}")
 
-            val top5 = predictTop5ImageNetLabels(it, inputData, imageNetClassLabels)
+            val top5 = it.predictTop5Labels(inputData, imageNetClassLabels)
 
             println(top5.toString())
         }

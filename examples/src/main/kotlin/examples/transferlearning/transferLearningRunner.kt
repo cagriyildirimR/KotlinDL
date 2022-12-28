@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
+ * Copyright 2020-2022 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE.txt file.
  */
 
@@ -11,28 +11,25 @@ import org.jetbrains.kotlinx.dl.api.core.activation.Activations
 import org.jetbrains.kotlinx.dl.api.core.initializer.GlorotUniform
 import org.jetbrains.kotlinx.dl.api.core.layer.Layer
 import org.jetbrains.kotlinx.dl.api.core.layer.core.Dense
+import org.jetbrains.kotlinx.dl.api.core.layer.freeze
 import org.jetbrains.kotlinx.dl.api.core.layer.pooling.GlobalAvgPool2D
 import org.jetbrains.kotlinx.dl.api.core.loss.Losses
 import org.jetbrains.kotlinx.dl.api.core.metric.Metrics
 import org.jetbrains.kotlinx.dl.api.core.optimizer.Adam
-import org.jetbrains.kotlinx.dl.api.core.summary.logSummary
 import org.jetbrains.kotlinx.dl.api.inference.keras.*
-import org.jetbrains.kotlinx.dl.api.inference.keras.loaders.TFModelHub
-import org.jetbrains.kotlinx.dl.api.inference.keras.loaders.TFModels
+import org.jetbrains.kotlinx.dl.api.inference.loaders.TFModelHub
+import org.jetbrains.kotlinx.dl.api.inference.loaders.TFModels
+import org.jetbrains.kotlinx.dl.api.inference.loaders.TFModels.CV.Companion.createPreprocessing
+import org.jetbrains.kotlinx.dl.api.summary.printSummary
 import org.jetbrains.kotlinx.dl.dataset.OnFlyImageDataset
-import org.jetbrains.kotlinx.dl.dataset.dogsCatsSmallDatasetPath
-import org.jetbrains.kotlinx.dl.dataset.image.ColorMode
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.*
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.generator.FromFolders
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.image.InterpolationType
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.image.convert
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.image.resize
+import org.jetbrains.kotlinx.dl.dataset.embedded.dogsCatsSmallDatasetPath
+import org.jetbrains.kotlinx.dl.dataset.generator.FromFolders
+import org.jetbrains.kotlinx.dl.impl.summary.logSummary
 import java.io.File
 
 private const val TRAINING_BATCH_SIZE = 8
 private const val TEST_BATCH_SIZE = 16
 private const val NUM_CLASSES = 2
-private const val NUM_CHANNELS = 3L
 private const val TRAIN_TEST_SPLIT_RATIO = 0.7
 
 fun runImageRecognitionTransferLearning(
@@ -41,32 +38,6 @@ fun runImageRecognitionTransferLearning(
 ) {
     val modelHub = TFModelHub(cacheDirectory = File("cache/pretrainedModels"))
     val model = modelHub.loadModel(modelType)
-
-    val dogsCatsImages = dogsCatsSmallDatasetPath()
-
-    val preprocessing: Preprocessing = preprocess {
-        load {
-            pathToData = File(dogsCatsImages)
-            imageShape = ImageShape(channels = NUM_CHANNELS)
-            labelGenerator = FromFolders(mapping = mapOf("cat" to 0, "dog" to 1))
-        }
-        transformImage {
-            resize {
-                outputHeight = modelType.inputShape?.get(0) ?: 224
-                outputWidth = modelType.inputShape?.get(0) ?: 224
-                interpolation = InterpolationType.BILINEAR
-            }
-            convert { colorMode = ColorMode.BGR }
-        }
-        transformTensor {
-            sharpen {
-                modelTypePreprocessing = modelType
-            }
-        }
-    }
-
-    val dataset = OnFlyImageDataset.create(preprocessing).shuffle()
-    val (train, test) = dataset.split(TRAIN_TEST_SPLIT_RATIO)
 
     val hdfFile = modelHub.loadWeights(modelType)
     val layers = mutableListOf<Layer>()
@@ -111,13 +82,20 @@ fun runImageRecognitionTransferLearning(
 
     val model2 = Functional.of(layers)
 
+    val dataset = OnFlyImageDataset.create(
+        File(dogsCatsSmallDatasetPath()),
+        FromFolders(mapping = mapOf("cat" to 0, "dog" to 1)),
+        modelType.createPreprocessing(model2)
+    ).shuffle()
+    val (train, test) = dataset.split(TRAIN_TEST_SPLIT_RATIO)
+
     model2.use {
         it.compile(
             optimizer = Adam(),
             loss = Losses.SOFT_MAX_CROSS_ENTROPY_WITH_LOGITS,
             metric = Metrics.ACCURACY
         )
-        model2.logSummary()
+        model2.printSummary()
 
         it.loadWeightsForFrozenLayers(hdfFile)
 
@@ -143,39 +121,9 @@ fun runImageRecognitionTransferLearningOnTopModel(
     val modelHub = TFModelHub(cacheDirectory = File("cache/pretrainedModels"))
     val model = modelHub.loadModel(modelType)
 
-    val dogsCatsImages = dogsCatsSmallDatasetPath()
-
-    val preprocessing: Preprocessing = preprocess {
-        load {
-            pathToData = File(dogsCatsImages)
-            imageShape = ImageShape(channels = NUM_CHANNELS)
-            labelGenerator = FromFolders(mapping = mapOf("cat" to 0, "dog" to 1))
-        }
-        transformImage {
-            resize {
-                outputHeight = modelType.inputShape?.get(0) ?: 224
-                outputWidth = modelType.inputShape?.get(0) ?: 224
-                interpolation = InterpolationType.BILINEAR
-            }
-            convert { colorMode = ColorMode.BGR }
-        }
-        transformTensor {
-            sharpen {
-                modelTypePreprocessing = modelType
-            }
-        }
-    }
-
-    val dataset = OnFlyImageDataset.create(preprocessing).shuffle()
-    val (train, test) = dataset.split(TRAIN_TEST_SPLIT_RATIO)
-
     val hdfFile = modelHub.loadWeights(modelType)
-    val layers = mutableListOf<Layer>()
-
-    for (layer in model.layers) {
-        layer.isTrainable = false
-        layers.add(layer)
-    }
+    val layers = model.layers.toMutableList()
+    layers.forEach(Layer::freeze)
 
     val lastLayer = layers.last()
     for (outboundLayer in lastLayer.inboundLayers)
@@ -201,6 +149,13 @@ fun runImageRecognitionTransferLearningOnTopModel(
 
     val model2 = Functional.fromOutput(x)
 
+    val dataset = OnFlyImageDataset.create(
+        File(dogsCatsSmallDatasetPath()),
+        FromFolders(mapping = mapOf("cat" to 0, "dog" to 1)),
+        modelType.createPreprocessing(model2)
+    ).shuffle()
+    val (train, test) = dataset.split(TRAIN_TEST_SPLIT_RATIO)
+
     model2.use {
         it.compile(
             optimizer = Adam(),
@@ -224,7 +179,12 @@ fun runImageRecognitionTransferLearningOnTopModel(
             )
         )
 
-        it.loadWeightsByPaths(hdfFile, weightPaths, missedWeights = MissedWeightsStrategy.LOAD_CUSTOM_PATH, forFrozenLayersOnly = true)
+        it.loadWeightsByPaths(
+            hdfFile,
+            weightPaths,
+            missedWeights = MissedWeightsStrategy.LOAD_CUSTOM_PATH,
+            forFrozenLayersOnly = true
+        )
 
         val accuracyBeforeTraining = it.evaluate(dataset = test, batchSize = TEST_BATCH_SIZE).metrics[Metrics.ACCURACY]
         println("Accuracy before training $accuracyBeforeTraining")

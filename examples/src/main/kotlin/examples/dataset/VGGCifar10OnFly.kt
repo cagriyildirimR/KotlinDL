@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
+ * Copyright 2020-2022 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE.txt file.
  */
 
@@ -19,13 +19,14 @@ import org.jetbrains.kotlinx.dl.api.core.layer.reshaping.Flatten
 import org.jetbrains.kotlinx.dl.api.core.loss.Losses
 import org.jetbrains.kotlinx.dl.api.core.metric.Metrics
 import org.jetbrains.kotlinx.dl.api.core.optimizer.Adam
-import org.jetbrains.kotlinx.dl.api.core.summary.logSummary
+import org.jetbrains.kotlinx.dl.api.preprocessing.pipeline
 import org.jetbrains.kotlinx.dl.dataset.OnFlyImageDataset
-import org.jetbrains.kotlinx.dl.dataset.cifar10Paths
-import org.jetbrains.kotlinx.dl.dataset.handler.extractCifar10LabelsAnsSort
-import org.jetbrains.kotlinx.dl.dataset.image.ColorMode
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.*
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.image.*
+import org.jetbrains.kotlinx.dl.dataset.embedded.cifar10Paths
+import org.jetbrains.kotlinx.dl.dataset.embedded.extractCifar10LabelsAnsSort
+import org.jetbrains.kotlinx.dl.impl.preprocessing.image.*
+import org.jetbrains.kotlinx.dl.impl.preprocessing.rescale
+import org.jetbrains.kotlinx.dl.impl.summary.logSummary
+import java.awt.image.BufferedImage
 import java.io.File
 
 private const val PATH_TO_MODEL = "savedmodels/vgg11"
@@ -169,7 +170,7 @@ private val vgg11 = Sequential.of(
  * This example shows how to do image classification from scratch using [vgg11] model, without leveraging pre-trained weights.
  * We demonstrate the workflow on the Cifar'10 classification dataset.
  *
- * We use the [Preprocessing] DSL to describe the dataset generation pipeline.
+ * We use the preprocessing DSL to describe the dataset generation pipeline.
  *
  * It includes:
  * - dataset loading from S3
@@ -182,39 +183,30 @@ private val vgg11 = Sequential.of(
  * - model evaluation
  */
 fun main() {
+    val preprocessing = pipeline<BufferedImage>()
+        .crop {
+            left = 2
+            right = 2
+            top = 2
+            bottom = 2
+        }
+        .rotate {
+            degrees = 90f
+        }
+        .resize {
+            outputHeight = IMAGE_SIZE.toInt()
+            outputWidth = IMAGE_SIZE.toInt()
+            interpolation = InterpolationType.NEAREST
+        }
+        .convert { colorMode = ColorMode.BGR }
+        .toFloatArray { }
+        .rescale {
+            scalingCoefficient = 255f
+        }
+
     val (cifarImagesArchive, cifarLabelsArchive) = cifar10Paths()
-
-    val preprocessing: Preprocessing = preprocess {
-        load {
-            pathToData = File(cifarImagesArchive)
-            imageShape = ImageShape(32, 32, 3)
-        }
-        transformImage {
-            crop {
-                left = 2
-                right = 2
-                top = 2
-                bottom = 2
-            }
-            rotate {
-                degrees = 90f
-            }
-            resize {
-                outputHeight = IMAGE_SIZE.toInt()
-                outputWidth = IMAGE_SIZE.toInt()
-                interpolation = InterpolationType.NEAREST
-            }
-            convert { colorMode = ColorMode.BGR }
-        }
-        transformTensor {
-            rescale {
-                scalingCoefficient = 255f
-            }
-        }
-    }
-
-    val y = extractCifar10LabelsAnsSort(cifarLabelsArchive, 10)
-    val dataset = OnFlyImageDataset.create(preprocessing, y)
+    val y = extractCifar10LabelsAnsSort(cifarLabelsArchive)
+    val dataset = OnFlyImageDataset.create(File(cifarImagesArchive), y, preprocessing)
 
     val (train, test) = dataset.split(TRAIN_TEST_SPLIT_RATIO)
 

@@ -10,18 +10,18 @@ This dataset contains 70,000 images that fall into ten different categories of c
 Each example is a 28x28 grayscale image associated with a single label that matches one of the 10 classes. 
 Here are the labels and how they map to the actual classes:
 
-| Label        | Class           | 
-| ------------- |:-------------:| 
-| 0      | T-shirt/top | 
-| 1      | Trousers |
-| 2      | Pullover |
-| 3      | Dress |
-| 4      | Coat |
-| 5      | Sandals |
-| 6      | Shirt |
-| 7      | Sneakers |
-| 8      | Bag |
-| 9      | Ankle boots |
+| Label |    Class    | 
+|-------|:-----------:| 
+| 0     | T-shirt/top | 
+| 1     |  Trousers   |
+| 2     |  Pullover   |
+| 3     |    Dress    |
+| 4     |    Coat     |
+| 5     |   Sandals   |
+| 6     |    Shirt    |
+| 7     |  Sneakers   |
+| 8     |     Bag     |
+| 9     | Ankle boots |
 
 For this example, we are planning to use a numeric representation for string categories, called string-to-number encoding. 
 We'll later use this to get human-readable predictions:
@@ -77,7 +77,7 @@ val model = Sequential.of(
 Quite simple, right? Let's take a closer look at what we have defined here. 
 First, we specify the kind of input we will pass to this neural network. 
 We have images that are 28 x 28 pixels and only have one color channel. 
-Thus the input will be an array of size 28 x 28 x 1.
+Thus, the input will be an array of size 28 x 28 x 1.
 
 The first layer is `Flatten()`. It simply reformats the data, 
 transforming the three-dimensional input array into a one-dimensional array 
@@ -136,7 +136,7 @@ Here, the last layer of the model gives us 10 numbers, each representing the pro
 *Softmax Crossentropy with logits* measures the probability of error. *Softmax Crossentropy with logits* measures the probability error. 
 * Metrics allow you to monitor the training and evaluation of the model. Accuracy simply represents the percentage of correct predictions out of all the predictions made.  
 
-At this point, we can call the `logSummary()` method to get a printout of the neural network's architecture. 
+At this point, we can call the `printSummary()` method to get a printout of the neural network's architecture. 
 
 ```kotlin
 it.printSummary()

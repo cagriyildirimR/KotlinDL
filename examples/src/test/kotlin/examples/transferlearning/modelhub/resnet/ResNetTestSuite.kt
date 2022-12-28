@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
+ * Copyright 2020-2022 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE.txt file.
  */
 
@@ -7,7 +7,7 @@ package examples.transferlearning.modelhub.resnet
 
 import examples.transferlearning.runImageRecognitionPrediction
 import examples.transferlearning.runImageRecognitionTransferLearning
-import org.jetbrains.kotlinx.dl.api.inference.keras.loaders.TFModels
+import org.jetbrains.kotlinx.dl.api.inference.loaders.TFModels
 import org.junit.jupiter.api.Test
 
 class ResNetTestSuite {
@@ -32,8 +32,18 @@ class ResNetTestSuite {
     }
 
     @Test
+    fun resnet50additionalTrainingWithHelperTest() {
+        resnet50additionalTrainingWithHelper()
+    }
+
+    @Test
     fun resnet50additionalTrainingNoTopTest() {
         resnet50noTopAdditionalTraining()
+    }
+
+    @Test
+    fun resnet50additionalTrainingNoTopWithHelperTest() {
+        resnet50additionalTrainingNoTopWithHelper()
     }
 
     @Test

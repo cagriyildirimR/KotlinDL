@@ -1,20 +1,26 @@
 /*
- * Copyright 2020 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
+ * Copyright 2020-2022 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE.txt file.
  */
 
 package examples.onnx.faces
 
 import examples.transferlearning.getFileFromResource
-import org.jetbrains.kotlinx.dl.api.inference.loaders.ONNXModelHub
-import org.jetbrains.kotlinx.dl.api.inference.onnx.ONNXModels
-import org.jetbrains.kotlinx.dl.api.inference.onnx.facealignment.Fan2D106FaceAlignmentModel
-import org.jetbrains.kotlinx.dl.dataset.image.ColorMode
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.*
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.image.convert
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.image.resize
-import org.jetbrains.kotlinx.dl.visualization.swing.drawRawLandMarks
+import org.jetbrains.kotlinx.dl.api.inference.facealignment.Landmark
+import org.jetbrains.kotlinx.dl.api.preprocessing.pipeline
+import org.jetbrains.kotlinx.dl.api.summary.printSummary
+import org.jetbrains.kotlinx.dl.impl.preprocessing.call
+import org.jetbrains.kotlinx.dl.impl.preprocessing.image.*
+import org.jetbrains.kotlinx.dl.onnx.inference.ONNXModelHub
+import org.jetbrains.kotlinx.dl.onnx.inference.ONNXModels
+import org.jetbrains.kotlinx.dl.onnx.inference.OrtSessionResultConversions.getFloatArray
+import org.jetbrains.kotlinx.dl.onnx.inference.facealignment.Fan2D106FaceAlignmentModel
+import org.jetbrains.kotlinx.dl.visualization.swing.createDetectedLandmarksPanel
+import org.jetbrains.kotlinx.dl.visualization.swing.showFrame
+import java.awt.GridLayout
+import java.awt.image.BufferedImage
 import java.io.File
+import javax.swing.JPanel
 
 /**
  * This examples demonstrates the light-weight inference API with [Fan2D106FaceAlignmentModel] on Fan2d106 model:
@@ -26,60 +32,41 @@ fun main() {
     val modelHub = ONNXModelHub(cacheDirectory = File("cache/pretrainedModels"))
     val modelType = ONNXModels.FaceAlignment.Fan2d106
     val model = modelHub.loadModel(modelType)
+    model.printSummary()
 
     model.use {
         println(it)
 
-        for (i in 0..8) {
-            val imageFile = getFileFromResource("datasets/faces/image$i.jpg")
-            val preprocessing: Preprocessing = preprocess {
-                load {
-                    pathToData = imageFile
-                    imageShape = ImageShape(224, 224, 3)
-                }
-                transformImage {
-                    resize {
-                        outputHeight = 192
-                        outputWidth = 192
-                    }
-                    convert { colorMode = ColorMode.BGR }
-                }
-            }
-
-            val inputData = modelType.preprocessInput(preprocessing)
-
-            val yhat = it.predictRaw(inputData)
-            println(yhat.values.toTypedArray().contentDeepToString())
-
-            visualiseLandMarks(imageFile, yhat)
-        }
-    }
-}
-
-fun visualiseLandMarks(
-    imageFile: File,
-    landmarks: Map<String, Any>
-) {
-    val preprocessing: Preprocessing = preprocess {
-        load {
-            pathToData = imageFile
-            imageShape = ImageShape(224, 224, 3)
-        }
-        transformImage {
-            resize {
-                outputWidth = 192
+        val preprocessor = pipeline<BufferedImage>()
+            .resize {
                 outputHeight = 192
+                outputWidth = 192
             }
-            convert { colorMode = ColorMode.BGR }
-        }
-        transformTensor {
-            rescale {
-                scalingCoefficient = 255f
+            .convert { colorMode = ColorMode.BGR }
+            .toFloatArray { }
+            .call(modelType.preprocessor)
+
+        val result = mutableMapOf<BufferedImage, List<Landmark>>()
+        for (i in 1..8) {
+            val inputFile = getFileFromResource("datasets/faces/image$i.jpg")
+            val inputImage = ImageConverter.toBufferedImage(inputFile)
+            val inputData = preprocessor.apply(inputImage)
+
+            val floats = it.predictRaw(inputData) { output -> output.getFloatArray("fc1") }
+            println(floats.contentToString())
+
+            val landMarks = mutableListOf<Landmark>()
+            for (j in floats.indices step 2) {
+                landMarks.add(Landmark((1 + floats[j]) / 2, (1 + floats[j + 1]) / 2))
             }
+            result[inputImage] = landMarks
         }
+
+        val panel = JPanel(GridLayout(2, 4))
+        val resize = pipeline<BufferedImage>().resize { outputWidth = 200; outputHeight = 200 }
+        for ((image, landmarks) in result) {
+            panel.add(createDetectedLandmarksPanel(resize.apply(image), landmarks))
+        }
+        showFrame("Face Landmarks", panel)
     }
-
-    val rawImage = preprocessing().first
-
-    drawRawLandMarks(rawImage, ImageShape(192, 192, 3), landmarks)
 }

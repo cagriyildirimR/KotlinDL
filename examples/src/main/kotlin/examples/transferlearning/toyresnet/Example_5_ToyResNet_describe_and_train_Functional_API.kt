@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
+ * Copyright 2020-2022 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE.txt file.
  */
 
@@ -21,9 +21,9 @@ import org.jetbrains.kotlinx.dl.api.core.layer.pooling.MaxPool2D
 import org.jetbrains.kotlinx.dl.api.core.loss.Losses
 import org.jetbrains.kotlinx.dl.api.core.metric.Metrics
 import org.jetbrains.kotlinx.dl.api.core.optimizer.Adam
-import org.jetbrains.kotlinx.dl.api.core.summary.logSummary
-import org.jetbrains.kotlinx.dl.dataset.fashionMnist
-import org.jetbrains.kotlinx.dl.dataset.handler.NUMBER_OF_CLASSES
+import org.jetbrains.kotlinx.dl.dataset.embedded.NUMBER_OF_CLASSES
+import org.jetbrains.kotlinx.dl.dataset.embedded.fashionMnist
+import org.jetbrains.kotlinx.dl.impl.summary.logSummary
 
 /**
  * What's about Functional API usage in KotlinDL directly?
@@ -50,8 +50,8 @@ fun main() {
     )
     x = Conv2D(
         filters = 32,
-        kernelSize = intArrayOf(3, 3),
-        strides = intArrayOf(1, 1, 1, 1),
+        kernelSize = 3,
+        strides = 1,
         activation = Activations.Relu,
         kernelInitializer = HeNormal(SEED),
         biasInitializer = HeNormal(SEED),
@@ -61,8 +61,8 @@ fun main() {
 
     x = Conv2D(
         filters = 64,
-        kernelSize = intArrayOf(3, 3),
-        strides = intArrayOf(1, 1, 1, 1),
+        kernelSize = 3,
+        strides = 1,
         activation = Activations.Relu,
         kernelInitializer = HeNormal(SEED),
         biasInitializer = HeNormal(SEED),
@@ -71,16 +71,16 @@ fun main() {
     )(x)
 
     val maxPool = MaxPool2D(
-        poolSize = intArrayOf(1, 3, 3, 1),
-        strides = intArrayOf(1, 3, 3, 1),
+        poolSize = 3,
+        strides = 3,
         padding = ConvPadding.VALID,
         name = "maxPool2D"
     )(x)
 
     x = Conv2D(
         filters = 64,
-        kernelSize = intArrayOf(3, 3),
-        strides = intArrayOf(1, 1, 1, 1),
+        kernelSize = 3,
+        strides = 1,
         activation = Activations.Relu,
         kernelInitializer = HeNormal(SEED),
         biasInitializer = HeNormal(SEED),
@@ -90,8 +90,8 @@ fun main() {
 
     x = Conv2D(
         filters = 64,
-        kernelSize = intArrayOf(3, 3),
-        strides = intArrayOf(1, 1, 1, 1),
+        kernelSize = 3,
+        strides = 1,
         activation = Activations.Relu,
         kernelInitializer = HeNormal(SEED),
         biasInitializer = HeNormal(SEED),
@@ -103,8 +103,8 @@ fun main() {
 
     x = Conv2D(
         filters = 64,
-        kernelSize = intArrayOf(3, 3),
-        strides = intArrayOf(1, 1, 1, 1),
+        kernelSize = 3,
+        strides = 1,
         activation = Activations.Relu,
         kernelInitializer = HeNormal(SEED),
         biasInitializer = HeNormal(SEED),
@@ -114,8 +114,8 @@ fun main() {
 
     x = Conv2D(
         filters = 64,
-        kernelSize = intArrayOf(3, 3),
-        strides = intArrayOf(1, 1, 1, 1),
+        kernelSize = 3,
+        strides = 1,
         activation = Activations.Relu,
         kernelInitializer = HeNormal(SEED),
         biasInitializer = HeNormal(SEED),
@@ -127,8 +127,8 @@ fun main() {
 
     x = Conv2D(
         filters = 64,
-        kernelSize = intArrayOf(3, 3),
-        strides = intArrayOf(1, 1, 1, 1),
+        kernelSize = 3,
+        strides = 1,
         activation = Activations.Relu,
         kernelInitializer = HeNormal(SEED),
         biasInitializer = HeNormal(SEED),

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
+ * Copyright 2020-2022 JetBrains s.r.o. and Kotlin Deep Learning project contributors. All Rights Reserved.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE.txt file.
  */
 
@@ -19,15 +19,14 @@ import org.jetbrains.kotlinx.dl.api.core.layer.reshaping.Flatten
 import org.jetbrains.kotlinx.dl.api.core.loss.Losses
 import org.jetbrains.kotlinx.dl.api.core.metric.Metrics
 import org.jetbrains.kotlinx.dl.api.core.optimizer.Adam
-import org.jetbrains.kotlinx.dl.api.core.summary.logSummary
+import org.jetbrains.kotlinx.dl.api.preprocessing.pipeline
 import org.jetbrains.kotlinx.dl.dataset.OnFlyImageDataset
-import org.jetbrains.kotlinx.dl.dataset.dogsCatsDatasetPath
-import org.jetbrains.kotlinx.dl.dataset.image.ColorMode
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.*
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.generator.FromFolders
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.image.InterpolationType
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.image.convert
-import org.jetbrains.kotlinx.dl.dataset.preprocessor.image.resize
+import org.jetbrains.kotlinx.dl.dataset.embedded.dogsCatsDatasetPath
+import org.jetbrains.kotlinx.dl.dataset.generator.FromFolders
+import org.jetbrains.kotlinx.dl.impl.preprocessing.image.*
+import org.jetbrains.kotlinx.dl.impl.preprocessing.rescale
+import org.jetbrains.kotlinx.dl.impl.summary.logSummary
+import java.awt.image.BufferedImage
 import java.io.File
 
 private const val PATH_TO_MODEL = "savedmodels/vgg11"
@@ -171,7 +170,7 @@ private val vgg11 = Sequential.of(
  * This example shows how to do image classification from scratch using [vgg11] model, without leveraging pre-trained weights.
  * We demonstrate the workflow on the Kaggle Cats vs Dogs binary classification dataset.
  *
- * We use the [Preprocessing] DSL to describe the dataset generation pipeline.
+ * We use the preprocessing DSL to describe the dataset generation pipeline.
  *
  * It includes:
  * - dataset loading from S3
@@ -184,30 +183,24 @@ private val vgg11 = Sequential.of(
  * - model evaluation
  */
 fun main() {
+    val preprocessing = pipeline<BufferedImage>()
+        .resize {
+            outputHeight = IMAGE_SIZE.toInt()
+            outputWidth = IMAGE_SIZE.toInt()
+            interpolation = InterpolationType.NEAREST
+        }
+        .convert { colorMode = ColorMode.BGR }
+        .toFloatArray { }
+        .rescale {
+            scalingCoefficient = 255f
+        }
+
     val dogsCatsImages = dogsCatsDatasetPath()
-
-    val preprocessing: Preprocessing = preprocess {
-        load {
-            pathToData = File(dogsCatsImages)
-            imageShape = ImageShape(channels = 3)
-            labelGenerator = FromFolders(mapping = mapOf("cat" to 0, "dog" to 1))
-        }
-        transformImage {
-            resize {
-                outputHeight = IMAGE_SIZE.toInt()
-                outputWidth = IMAGE_SIZE.toInt()
-                interpolation = InterpolationType.NEAREST
-            }
-            convert { colorMode = ColorMode.BGR }
-        }
-        transformTensor {
-            rescale {
-                scalingCoefficient = 255f
-            }
-        }
-    }
-
-    val dataset = OnFlyImageDataset.create(preprocessing).shuffle()
+    val dataset = OnFlyImageDataset.create(
+        File(dogsCatsImages),
+        FromFolders(mapping = mapOf("cat" to 0, "dog" to 1)),
+        preprocessing
+    ).shuffle()
     val (train, test) = dataset.split(TRAIN_TEST_SPLIT_RATIO)
 
     vgg11.use {

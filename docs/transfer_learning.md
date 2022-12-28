@@ -26,31 +26,29 @@ You can do so via the Image Preprocessing Pipeline description, and building a d
 
 Here's code that will go through a folder structure received via ```dogsCatsSmallDatasetPath()```, loads and resizes the images, and applies the VGG-19 specific preprocessing.
 
+
+**Note**: The preprocessing DSL has changed in KotlinDL 0.5.0.
+You can find the docs for the previous version of the DSL [here](https://github.com/Kotlin/kotlindl/blob/release_0.4/docs/transfer_learning.md).
+
 ```kotlin
+val preprocessing = pipeline<BufferedImage>()
+    .resize {
+        outputHeight = 224
+        outputWidth = 224
+        interpolation = InterpolationType.BILINEAR
+    }
+    .convert { colorMode = ColorMode.BGR }
+    .toFloatArray { }
+    .call(TFModels.CV.VGG19().preprocessor)
+
 val dogsVsCatsDatasetPath = dogsCatsSmallDatasetPath()
 
-val preprocessing: Preprocessing = preprocess {
-    load {
-        pathToData = File(dogsVsCatsDatasetPath)
-        imageShape = ImageShape(channels = 3)
-        colorMode = ColorOrder.BGR
-        labelGenerator = FromFolders(mapping = mapOf("cat" to 0, "dog" to 1))
-    }
-    transformImage {
-        resize {
-            outputHeight = 224
-            outputWidth = 224
-            interpolation = InterpolationType.BILINEAR
-        }
-    }
-    transformTensor {
-        sharpen {
-            modelType = TFModels.CV.VGG19
-        }
-    }
-}
+val dataset = OnFlyImageDataset.create(
+    File(dogsVsCatsDatasetPath),
+    FromFolders(mapping = mapOf("cat" to 0, "dog" to 1)),
+    preprocessing
+).shuffle()
 
-val dataset = OnFlyImageDataset.create(preprocessing).shuffle()
 val (train, test) = dataset.split(0.7)
 ```  
 In the final lines, after creating a dataset, we shuffle the data, so that when we split it into training and testing portions, we do not get a test set containing only images of one class.    
@@ -63,7 +61,7 @@ In this tutorial, we will load VGG-19 model and weights that are made available 
 
 ```kotlin
 val modelHub = TFModelHub(cacheDirectory = File("cache/pretrainedModels"))
-val modelType = TFModels.CV.VGG19
+val modelType = TFModels.CV.VGG19()
 val model = modelHub.loadModel(modelType)
 ```
 
@@ -79,13 +77,8 @@ So this is what we will do:
 - The last layer of the original model classifies 1000 classes, but we only have two, so we'll dispose of it, and add another final prediction layer (and one intermediate dense layer to achieve better accuracy).   
 
 ```kotlin
-val layers = mutableListOf<Layer>()
-
-for (layer in model.layers.dropLast(1)) {
-    layer.isTrainable = false
-    layers.add(layer)
-}
-layers.forEach { it.isTrainable = false }
+val layers = model.layers.dropLast(1).toMutableList()
+layers.forEach(Layer::freeze)
 
 layers.add(
     Dense(
